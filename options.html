@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>X Enjo Guardrails Checker - Options</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Guardrails 設定</h1>
+
+      <section class="card">
+        <h2>API</h2>
+        <label class="field">
+          <span>Chakoshi API Endpoint</span>
+          <input
+            id="apiEndpoint"
+            type="url"
+            placeholder="https://api.beta.chakoshi.ntt.com"
+            autocomplete="off"
+          />
+        </label>
+        <label class="field">
+          <span>API Key</span>
+          <input id="apiKey" type="password" placeholder="XXXXXXXXXXXXXXXX" />
+        </label>
+        <label class="field">
+          <span>Guardrail ID</span>
+          <input id="guardrailId" type="text" placeholder="01kh55asXXXXXXXXXXXX" />
+        </label>
+        <div class="grid2">
+          <label class="field">
+            <span>閾値 (0.00 - 1.00)</span>
+            <input id="threshold" type="number" min="0" max="1" step="0.01" />
+          </label>
+          <label class="field">
+            <span>タイムアウト (ms)</span>
+            <input id="requestTimeoutMs" type="number" min="2000" max="60000" />
+          </label>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="save" class="btn primary" type="button">保存</button>
+        <button id="test" class="btn secondary" type="button">接続テスト</button>
+      </div>
+      <p id="status" class="status"></p>
+    </main>
+
+    <script src="options.js" type="module"></script>
+  </body>
+</html>

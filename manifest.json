@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "X Enjo Guardrails Checker",
+  "description": "X で投稿する前に Guardrails API で炎上リスクをチェックします。",
+  "version": "0.1.15",
+  "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "X Enjo Guardrails Checker"
+  }
+}
