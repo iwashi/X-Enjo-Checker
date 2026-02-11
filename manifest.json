@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "X Enjo Guardrails Checker",
   "description": "X で投稿する前に Guardrails API で炎上リスクをチェックします。",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],
   "background": {

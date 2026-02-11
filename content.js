@@ -265,16 +265,33 @@ function isVisible(element) {
 
 function sendAnalyzeRequest(text) {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "ANALYZE_POST", text }, (response) => {
-      if (chrome.runtime.lastError) {
-        resolve({
-          ok: false,
-          error: chrome.runtime.lastError.message || "Unknown runtime error"
-        });
-        return;
-      }
-      resolve(response || { ok: false, error: "No response from background" });
-    });
+    const runtime = globalThis.chrome?.runtime;
+    if (!runtime || typeof runtime.sendMessage !== "function") {
+      resolve({
+        ok: false,
+        error:
+          "拡張の接続状態が無効です。拡張を再読み込みし、X ページを更新して再試行してください。"
+      });
+      return;
+    }
+
+    try {
+      runtime.sendMessage({ type: "ANALYZE_POST", text }, (response) => {
+        if (runtime.lastError) {
+          resolve({
+            ok: false,
+            error: runtime.lastError.message || "Unknown runtime error"
+          });
+          return;
+        }
+        resolve(response || { ok: false, error: "No response from background" });
+      });
+    } catch (error) {
+      resolve({
+        ok: false,
+        error: error?.message || "Failed to call chrome.runtime.sendMessage"
+      });
+    }
   });
 }
 
