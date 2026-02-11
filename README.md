@@ -16,6 +16,7 @@ X への投稿前に `chakoshi Guardrails Apply API` を呼び出して、炎上
 - chakoshi の `API Key`
 - chakoshi で作成済みの `guardrail_id`
 - `https://x.com/*` へのアクセス許可
+- `https://api.beta.chakoshi.ntt.com/*` へのアクセス許可
 
 ## インストール
 
@@ -28,14 +29,10 @@ X への投稿前に `chakoshi Guardrails Apply API` を呼び出して、炎上
 
 オプション画面で以下を設定して `保存` してください。
 
-- `Guardrails Apply API Endpoint`
 - `API Key`
 - `Guardrail ID`
 - `閾値`（0.00 - 1.00）
 - `タイムアウト (ms)`
-
-`Guardrails Apply API Endpoint` はベースURLのみでも動作します。  
-例: `https://api.beta.chakoshi.ntt.com`  
 
 ## chakoshi 側の事前設定（必須）
 
@@ -74,6 +71,10 @@ X への投稿前に `chakoshi Guardrails Apply API` を呼び出して、炎上
 
 ## API リクエスト
 
+送信先エンドポイント（固定）:
+
+- `https://api.beta.chakoshi.ntt.com/v1/guardrails/apply`
+
 拡張は以下の形式で `POST` します。
 
 ```json
@@ -92,7 +93,7 @@ X への投稿前に `chakoshi Guardrails Apply API` を呼び出して、炎上
 ## トラブルシューティング
 
 - 接続テストが終わらない: `chrome://extensions` で拡張を再読み込みし、再実行してください。
-- 404 が返る: `Guardrails Apply API Endpoint` を確認してください。`https://api.beta.chakoshi.ntt.com` または `https://api.beta.chakoshi.ntt.com/v1/guardrails/apply` を推奨します。
+- 4xx/5xx が返る: `API Key` / `Guardrail ID` の設定値と chakoshi 側の権限・ID を確認してください。
 - X 上で `チェックボタン` が表示されない: ページをリロードし、拡張のサイトアクセス許可に `x.com` が含まれているか確認してください。
 
 ## ファイル構成
@@ -107,4 +108,5 @@ X への投稿前に `chakoshi Guardrails Apply API` を呼び出して、炎上
 ## 補足
 
 - `guardrail_id` は chakoshi ダッシュボードで作成・確認してください。
+- `API Key` / `Guardrail ID` / 閾値などの設定は `chrome.storage.local` に保存され、`sync` では同期しません。
 - X の DOM 変更により、将来的にセレクタ調整が必要になる場合があります。

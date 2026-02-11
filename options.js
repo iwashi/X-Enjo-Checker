@@ -1,13 +1,16 @@
 const DEFAULT_SETTINGS = {
-  apiEndpoint: "https://api.beta.chakoshi.ntt.com",
   apiKey: "",
   guardrailId: "",
   threshold: 0.7,
   requestTimeoutMs: 10000
 };
 
+const SETTINGS_STORAGE = chrome.storage.local;
+const LEGACY_STORAGE = chrome.storage.sync;
+const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
+const LEGACY_SETTINGS_KEYS = ["apiEndpoint", ...SETTINGS_KEYS];
+
 const el = {
-  apiEndpoint: document.getElementById("apiEndpoint"),
   apiKey: document.getElementById("apiKey"),
   guardrailId: document.getElementById("guardrailId"),
   threshold: document.getElementById("threshold"),
@@ -20,7 +23,8 @@ const el = {
 init().catch((error) => setStatus(`初期化エラー: ${error.message}`, false));
 
 async function init() {
-  const raw = await chrome.storage.sync.get(Object.keys(DEFAULT_SETTINGS));
+  await ensureSettingsMigrated().catch(() => {});
+  const raw = await SETTINGS_STORAGE.get(SETTINGS_KEYS);
   const settings = normalizeSettings(raw);
   renderSettings(settings);
   bindEvents();
@@ -32,7 +36,6 @@ function bindEvents() {
 }
 
 function renderSettings(settings) {
-  el.apiEndpoint.value = settings.apiEndpoint;
   el.apiKey.value = settings.apiKey;
   el.guardrailId.value = settings.guardrailId;
   el.threshold.value = String(settings.threshold);
@@ -47,7 +50,7 @@ async function handleSave() {
     return;
   }
 
-  await chrome.storage.sync.set(settings);
+  await SETTINGS_STORAGE.set(settings);
   setStatus("保存しました。", true);
 }
 
@@ -59,7 +62,7 @@ async function handleTest() {
     return;
   }
 
-  await chrome.storage.sync.set(settings);
+  await SETTINGS_STORAGE.set(settings);
   setStatus("接続テスト中...", true);
 
   const response = await sendAnalyzeTestMessage("これは接続テスト用の投稿文です。");
@@ -76,7 +79,6 @@ async function handleTest() {
 
 function collectSettings() {
   return {
-    apiEndpoint: el.apiEndpoint.value.trim(),
     apiKey: el.apiKey.value.trim(),
     guardrailId: el.guardrailId.value.trim(),
     threshold: clamp(Number(el.threshold.value), 0, 1, DEFAULT_SETTINGS.threshold),
@@ -90,19 +92,6 @@ function collectSettings() {
 }
 
 function validateSettings(settings) {
-  if (!settings.apiEndpoint) {
-    return "Chakoshi API Endpoint を入力してください。";
-  }
-
-  try {
-    const url = new URL(settings.apiEndpoint);
-    if (!url.protocol.startsWith("http")) {
-      return "Chakoshi API Endpoint は http/https を指定してください。";
-    }
-  } catch (_error) {
-    return "Chakoshi API Endpoint の形式が不正です。";
-  }
-
   if (!settings.apiKey) {
     return "API Key を入力してください。";
   }
@@ -115,10 +104,6 @@ function validateSettings(settings) {
 
 function normalizeSettings(raw) {
   return {
-    apiEndpoint:
-      typeof raw.apiEndpoint === "string"
-        ? raw.apiEndpoint
-        : DEFAULT_SETTINGS.apiEndpoint,
     apiKey:
       typeof raw.apiKey === "string" ? raw.apiKey : DEFAULT_SETTINGS.apiKey,
     guardrailId:
@@ -197,4 +182,22 @@ function sendAnalyzeTestMessage(text) {
       resolve({ ok: false, error: error?.message || String(error) });
     }
   });
+}
+
+async function ensureSettingsMigrated() {
+  const [localRaw, legacyRaw] = await Promise.all([
+    SETTINGS_STORAGE.get(SETTINGS_KEYS),
+    LEGACY_STORAGE.get(LEGACY_SETTINGS_KEYS)
+  ]);
+
+  const merged = normalizeSettings({ ...legacyRaw, ...localRaw });
+  const shouldWriteLocal = SETTINGS_KEYS.some((key) => localRaw[key] !== merged[key]);
+  if (shouldWriteLocal) {
+    await SETTINGS_STORAGE.set(merged);
+  }
+
+  const hasLegacyData = LEGACY_SETTINGS_KEYS.some((key) => legacyRaw[key] !== undefined);
+  if (hasLegacyData) {
+    await LEGACY_STORAGE.remove(LEGACY_SETTINGS_KEYS).catch(() => {});
+  }
 }

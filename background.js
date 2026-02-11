@@ -1,16 +1,24 @@
+const FIXED_API_ENDPOINT = "https://api.beta.chakoshi.ntt.com/v1/guardrails/apply";
+
 const DEFAULT_SETTINGS = {
-  apiEndpoint: "https://api.beta.chakoshi.ntt.com",
   apiKey: "",
   guardrailId: "",
   threshold: 0.7,
   requestTimeoutMs: 10000
 };
 
-chrome.runtime.onInstalled.addListener(async () => {
-  const current = await chrome.storage.sync.get();
-  const merged = mergeSettings(current);
-  await chrome.storage.sync.set(merged);
+const SETTINGS_STORAGE = chrome.storage.local;
+const LEGACY_STORAGE = chrome.storage.sync;
+const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
+const LEGACY_SETTINGS_KEYS = ["apiEndpoint", ...SETTINGS_KEYS];
+
+let migrationPromise = null;
+
+chrome.runtime.onInstalled.addListener(() => {
+  void ensureSettingsMigrated();
 });
+
+void ensureSettingsMigrated();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "ANALYZE_POST") {
@@ -35,12 +43,6 @@ async function analyzePost(text) {
   }
 
   const settings = await loadSettings();
-  if (!settings.apiEndpoint.trim()) {
-    return {
-      ok: false,
-      error: "API endpoint is not configured. Open extension options."
-    };
-  }
   if (!settings.apiKey.trim()) {
     return {
       ok: false,
@@ -51,16 +53,6 @@ async function analyzePost(text) {
     return {
       ok: false,
       error: "Guardrail ID is not configured. Open extension options."
-    };
-  }
-
-  let endpoint;
-  try {
-    endpoint = resolveApplyEndpoint(settings.apiEndpoint);
-  } catch (_error) {
-    return {
-      ok: false,
-      error: "API endpoint format is invalid. Open extension options."
     };
   }
 
@@ -81,7 +73,7 @@ async function analyzePost(text) {
   let responseBody;
   let rawText = "";
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(FIXED_API_ENDPOINT, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -124,29 +116,6 @@ async function analyzePost(text) {
     violations: normalized.violations,
     raw: responseBody
   };
-}
-
-function resolveApplyEndpoint(apiEndpoint) {
-  const url = new URL(apiEndpoint);
-  const normalizedPath = url.pathname.replace(/\/+$/, "");
-
-  if (!normalizedPath || normalizedPath === "/v1" || normalizedPath === "/v1/guardrails") {
-    url.pathname = "/v1/guardrails/apply";
-    return url.toString();
-  }
-  if (normalizedPath.endsWith("/guardrails.apply")) {
-    url.pathname = normalizedPath.replace(
-      /\/guardrails\.apply$/,
-      "/v1/guardrails/apply"
-    );
-    return url.toString();
-  }
-  if (normalizedPath === "/v1/guardrails/apply") {
-    url.pathname = normalizedPath;
-    return url.toString();
-  }
-
-  return url.toString();
 }
 
 function buildPayload(text, settings) {
@@ -369,16 +338,13 @@ function truncate(text, maxLength) {
 }
 
 async function loadSettings() {
-  const raw = await chrome.storage.sync.get(Object.keys(DEFAULT_SETTINGS));
+  await ensureSettingsMigrated().catch(() => {});
+  const raw = await SETTINGS_STORAGE.get(SETTINGS_KEYS);
   return mergeSettings(raw);
 }
 
 function mergeSettings(raw) {
   return {
-    apiEndpoint:
-      typeof raw.apiEndpoint === "string"
-        ? raw.apiEndpoint
-        : DEFAULT_SETTINGS.apiEndpoint,
     apiKey:
       typeof raw.apiKey === "string" ? raw.apiKey : DEFAULT_SETTINGS.apiKey,
     guardrailId:
@@ -401,4 +367,32 @@ function sanitizeNumber(value, fallback, min, max) {
     return fallback;
   }
   return Math.min(max, Math.max(min, num));
+}
+
+function ensureSettingsMigrated() {
+  if (!migrationPromise) {
+    migrationPromise = migrateLegacySettings().catch((error) => {
+      migrationPromise = null;
+      throw error;
+    });
+  }
+  return migrationPromise;
+}
+
+async function migrateLegacySettings() {
+  const [localRaw, legacyRaw] = await Promise.all([
+    SETTINGS_STORAGE.get(SETTINGS_KEYS),
+    LEGACY_STORAGE.get(LEGACY_SETTINGS_KEYS)
+  ]);
+
+  const merged = mergeSettings({ ...legacyRaw, ...localRaw });
+  const shouldWriteLocal = SETTINGS_KEYS.some((key) => localRaw[key] !== merged[key]);
+  if (shouldWriteLocal) {
+    await SETTINGS_STORAGE.set(merged);
+  }
+
+  const hasLegacyData = LEGACY_SETTINGS_KEYS.some((key) => legacyRaw[key] !== undefined);
+  if (hasLegacyData) {
+    await LEGACY_STORAGE.remove(LEGACY_SETTINGS_KEYS).catch(() => {});
+  }
 }

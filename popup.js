@@ -1,5 +1,7 @@
 const statusEl = document.getElementById("status");
 const openOptionsButton = document.getElementById("openOptions");
+const SETTINGS_KEYS = ["apiKey", "guardrailId"];
+const LEGACY_SETTINGS_KEYS = ["apiEndpoint", ...SETTINGS_KEYS];
 
 openOptionsButton.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
@@ -11,14 +13,28 @@ init().catch((error) => {
 });
 
 async function init() {
-  const settings = await chrome.storage.sync.get([
-    "apiEndpoint",
-    "apiKey",
-    "guardrailId"
+  const [localSettings, legacySettings] = await Promise.all([
+    chrome.storage.local.get(SETTINGS_KEYS),
+    chrome.storage.sync.get(LEGACY_SETTINGS_KEYS)
   ]);
+  const settings = { ...legacySettings, ...localSettings };
+
+  const shouldWriteLocal = SETTINGS_KEYS.some(
+    (key) => localSettings[key] === undefined && typeof settings[key] === "string"
+  );
+  if (shouldWriteLocal) {
+    await chrome.storage.local.set({
+      apiKey: settings.apiKey || "",
+      guardrailId: settings.guardrailId || ""
+    });
+  }
+
+  const hasLegacyData = LEGACY_SETTINGS_KEYS.some((key) => legacySettings[key] !== undefined);
+  if (hasLegacyData) {
+    await chrome.storage.sync.remove(LEGACY_SETTINGS_KEYS).catch(() => {});
+  }
+
   const configured =
-    typeof settings.apiEndpoint === "string" &&
-    settings.apiEndpoint.length > 0 &&
     typeof settings.apiKey === "string" &&
     settings.apiKey.length > 0 &&
     typeof settings.guardrailId === "string" &&
